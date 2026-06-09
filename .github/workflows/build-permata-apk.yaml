@@ -1,4 +1,4 @@
-name: Build Android Combined Modules
+name: Build Android SAI Bundle (.apks)
 run-name: ${{ github.event.inputs.repository }} ${{ github.event.inputs.branchName && format('{0}', github.event.inputs.branchName) }} ${{ github.event.inputs.subdir && format('[/{0}]', github.event.inputs.subdir) }}
 
 on:
@@ -48,23 +48,25 @@ jobs:
         run: |
           if [ ! -f "gradlew" ]; then gradle wrapper; fi
           chmod +x gradlew
-          # Compiles all underlying project modules (Fermata, Control, etc.) simultaneously
           ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
-      - name: Collect and Group All Module APKs
+      - name: Compile and Bundle into SAI APKS File
         run: |
-          mkdir -p full_combined_package
+          mkdir -p sai_bundle_package
           
-          # Locates and copies all specific ARM64 standalone files from every built module
-          find workspace/ -name "*arm64-v8a*.apk" -exec cp {} full_combined_package/ \;
+          # 1. Collect only the required 64-bit ARM module files into a clean folder
+          find workspace/ -name "*arm64-v8a*.apk" -exec cp {} sai_bundle_package/ \;
           
-          echo "Listing all collected app components:"
-          ls -la full_combined_package/
+          # 2. Package all matched .apk binaries directly into a single compressed .apks target file
+          cd sai_bundle_package
+          zip -r fermata-full-modules.apks ./*.apk
+          
+          echo "SAI package composition contents:"
+          ls -la
 
-      - name: Upload Full Combined Package
+      - name: Upload Signed APKS Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: fermata-full-modules-combined
-          # Targets the entire directory so everything downloads neatly together
-          path: full_combined_package/*.apk
+          name: fermata-sai-bundle
+          path: sai_bundle_package/fermata-full-modules.apks
           retention-days: 1

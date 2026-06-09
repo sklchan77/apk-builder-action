@@ -28,9 +28,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      # Forces Node 20 actions to continue working past the June 2026 runner deprecation threshold
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
       - name: Setup JDK
         uses: actions/setup-java@v5
@@ -53,19 +50,26 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
-      - name: Sign 64-bit APK File with P12
-        uses: ilharp/sign-android-release@v2
-        with:
-          # Corrected parameter keys explicitly required by ilharp/sign-android-release@v2
-          releaseDir:  ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}
-          signingKey: ${{ secrets.KEYSTORE_BASE64 }}
-          keyAlias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+      - name: Decode and Sign 64-bit APK Natively
+        run: |
+          # 1. Determine correct target directories
+          TARGET_DIR="${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}"
+          
+          # 2. Re-create the .p12 binary key out of your secret string
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.p12
+          
+          # 3. Locate apksigner utility inside the runner environment
+          BUILD_TOOLS_DIR=$(dirname $(find /usr/local/lib/android/sdk/build-tools -name apksigner | sort -V | tail -n 1))
+          
+          # 4. Filter the specific 64-bit unsigned build target
+          UNSIGNED_APK=$(find $TARGET_DIR -name "*arm64-v8a*.apk" ! -name "*signed*")
+          
+          # 5. Sign the file natively with apksigner using the P12 container
+          $BUILD_TOOLS_DIR/apksigner sign --ks release.p12 --ks-type PKCS12 --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" --ks-key-alias "${{ secrets.KEY_ALIAS }}", --key-pass pass:"${{ secrets.KEY_PASSWORD }}" --out $TARGET_DIR/fermata-arm64-signed.apk $UNSIGNED_APK
 
       - name: Upload Single 64-bit APK
         uses: actions/upload-artifact@v4
         with:
           name: fermata-arm64-installer
-          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk' }}
+          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/fermata-arm64-signed.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/fermata-arm64-signed.apk' }}
           retention-days: 1

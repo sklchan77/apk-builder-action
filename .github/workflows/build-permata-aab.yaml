@@ -7,7 +7,7 @@ on:
       repository:
         description: "Git repository URL"
         required: true
-        default: "https://github.com/AndreyPavlenko/Fermata"
+        default: "https://github.com/sklchan77/Permata"
       branchName:
         description: "Git branch name [Optional]"
         required: false

@@ -1,0 +1,63 @@
+name: Build Android AAB
+run-name: ${{ github.event.inputs.repository }} ${{ github.event.inputs.branchName && format('{0}', github.event.inputs.branchName) }} ${{ github.event.inputs.subdir && format('[/{0}]', github.event.inputs.subdir) }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Git repository URL"
+        required: true
+        default: "https://github.com"
+      branchName:
+        description: "Git branch name [Optional]"
+        required: false
+        default: ""
+      subdir:
+        description: "Relative subdirectory path when the project is nested [Optional]"
+        required: false
+        default: ""
+      jdkVersion:
+        description: "OpenJDK version: 8, 17, 21, 25, …"
+        required: false
+        default: "17"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: ${{ github.event.inputs.jdkVersion }}
+
+      - name: Clone project
+        run: |
+          if [[ -z "${{ github.event.inputs.branchName }}" ]]; then
+            git clone --recurse-submodules --depth=1 ${{ github.event.inputs.repository }} workspace
+          else
+            git clone --recurse-submodules --depth=1 --branch ${{ github.event.inputs.branchName }} ${{ github.event.inputs.repository }} workspace
+          fi
+
+      - name: Build Android App Bundle (AAB)
+        working-directory: ./workspace/${{ github.event.inputs.subdir }}
+        run: |
+          if [ ! -f "gradlew" ]; then gradle wrapper; fi
+          chmod +x gradlew
+          ./gradlew bundleRelease --stacktrace
+
+      - name: Sign AAB File with P12
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: workspace/${{ github.event.inputs.subdir }}/app/build/outputs/bundle/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Signed AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-store-signed-bundle
+          path: workspace/${{ github.event.inputs.subdir }}/app/build/outputs/bundle/release/*-signed.aab
+          retention-days: 1

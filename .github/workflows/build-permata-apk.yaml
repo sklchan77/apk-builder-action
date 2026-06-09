@@ -28,6 +28,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Forces Node 20 actions to continue working past the June 2026 runner deprecation threshold
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
       - name: Setup JDK
         uses: actions/setup-java@v5
@@ -51,12 +54,12 @@ jobs:
           ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
       - name: Sign 64-bit APK File with P12
-        # Fixed: Switched to the correct official repository path matching Node 24 support
         uses: ilharp/sign-android-release@v2
         with:
-          releaseDirectory: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
+          # Corrected parameter keys explicitly required by ilharp/sign-android-release@v2
+          releaseDir:  ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}
+          signingKey: ${{ secrets.KEYSTORE_BASE64 }}
+          keyAlias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 

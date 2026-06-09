@@ -50,32 +50,9 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
-      - name: Decode P12 Key
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.p12
-
-      - name: Run Android Signer Tool
-        run: |
-          TARGET_DIR="${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}"
-          BUILD_TOOLS_DIR=$(dirname $(find /usr/local/lib/android/sdk/build-tools -name apksigner | sort -V | tail -n 1))
-          UNSIGNED_APK=$(find $TARGET_DIR -name "*arm64-v8a*.apk" ! -name "*signed*")
-          
-          echo "Found Unsigned APK: $UNSIGNED_APK"
-          echo "Using Build Tools From: $BUILD_TOOLS_DIR"
-          
-          # Fixed line: Removed the extra comma typo after key-alias
-          $BUILD_TOOLS_DIR/apksigner sign \
-            --ks release.p12 \
-            --ks-type PKCS12 \
-            --ks-pass 'pass:${{ secrets.KEYSTORE_PASSWORD }}' \
-            --key-pass 'pass:${{ secrets.KEY_PASSWORD }}' \
-            --ks-key-alias '${{ secrets.KEY_ALIAS }}' \
-            --out $TARGET_DIR/fermata-arm64-signed.apk \
-            "$UNSIGNED_APK"
-
-      - name: Upload Single 64-bit APK
+      - name: Upload Unsigned 64-bit APK
         uses: actions/upload-artifact@v4
         with:
-          name: fermata-arm64-installer
-          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/fermata-arm64-signed.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/fermata-arm64-signed.apk' }}
+          name: fermata-arm64-unsigned-installer
+          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk' }}
           retention-days: 1

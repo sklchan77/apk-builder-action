@@ -1,4 +1,4 @@
-name: Build Android 64-bit APK
+name: Build Android Combined Modules
 run-name: ${{ github.event.inputs.repository }} ${{ github.event.inputs.branchName && format('{0}', github.event.inputs.branchName) }} ${{ github.event.inputs.subdir && format('[/{0}]', github.event.inputs.subdir) }}
 
 on:
@@ -43,28 +43,28 @@ jobs:
             git clone --recurse-submodules --depth=1 --branch ${{ github.event.inputs.branchName }} ${{ github.event.inputs.repository }} workspace
           fi
 
-      - name: Build Android APK
+      - name: Build All Android Modules
         working-directory: ./workspace/${{ github.event.inputs.subdir }}
         run: |
           if [ ! -f "gradlew" ]; then gradle wrapper; fi
           chmod +x gradlew
+          # Compiles all underlying project modules (Fermata, Control, etc.) simultaneously
           ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
-      - name: Isolate Single 64-bit APK
+      - name: Collect and Group All Module APKs
         run: |
-          # Create a dedicated clean folder to hold only the single output file
-          mkdir -p final_apk_out
+          mkdir -p full_combined_package
           
-          # Locates specifically the 64-bit app installer inside the fermata module folder, ignoring all companion modules
-          find workspace/ -path "*/fermata/build/outputs/apk/*" -name "*arm64-v8a*.apk" -exec cp {} final_apk_out/fermata-arm64-v8a-release.apk \;
+          # Locates and copies all specific ARM64 standalone files from every built module
+          find workspace/ -name "*arm64-v8a*.apk" -exec cp {} full_combined_package/ \;
           
-          echo "Isolation verification:"
-          ls -la final_apk_out/
+          echo "Listing all collected app components:"
+          ls -la full_combined_package/
 
-      - name: Upload Unsigned 64-bit APK
+      - name: Upload Full Combined Package
         uses: actions/upload-artifact@v4
         with:
-          name: fermata-arm64-unsigned-installer
-          # Target only the isolated single file folder path
-          path: final_apk_out/fermata-arm64-v8a-release.apk
+          name: fermata-full-modules-combined
+          # Targets the entire directory so everything downloads neatly together
+          path: full_combined_package/*.apk
           retention-days: 1

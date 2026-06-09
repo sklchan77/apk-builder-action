@@ -48,11 +48,11 @@ jobs:
         run: |
           if [ ! -f "gradlew" ]; then gradle wrapper; fi
           chmod +x gradlew
-          # Changed from bundleAutoRelease to assembleAutoRelease to force APK output creation
           ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
       - name: Sign 64-bit APK File with P12
-        uses: ILAnatoly/sign-android-release@v2
+        # Fixed: Switched to the correct official repository path matching Node 24 support
+        uses: ilharp/sign-android-release@v2
         with:
           releaseDirectory: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}
           signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}

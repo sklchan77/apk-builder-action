@@ -1,4 +1,4 @@
-name: Build Android SAI Bundle (.apks)
+name: Build Android Unified Universal APK
 run-name: ${{ github.event.inputs.repository }} ${{ github.event.inputs.branchName && format('{0}', github.event.inputs.branchName) }} ${{ github.event.inputs.subdir && format('[/{0}]', github.event.inputs.subdir) }}
 
 on:
@@ -43,38 +43,28 @@ jobs:
             git clone --recurse-submodules --depth=1 --branch ${{ github.event.inputs.branchName }} ${{ github.event.inputs.repository }} workspace
           fi
 
-      - name: Build All Android Modules
+      - name: Compile Unified Multi-Module Project
         working-directory: ./workspace/${{ github.event.inputs.subdir }}
         run: |
           if [ ! -f "gradlew" ]; then gradle wrapper; fi
           chmod +x gradlew
-          ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
+          # Compiles and packs all modular engines and processor assets into a single core output
+          ./gradlew packageAutoReleaseUniversalApk -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
-      - name: Compile and Bundle into SAI APKS File
+      - name: Isolate Standalone Installer File
         run: |
-          mkdir -p sai_bundle_package
+          mkdir -p single_output_package
           
-          # 1. Broadly search and harvest all compiled release .apk variants from all module directories
-          find workspace/ -name "*.apk" ! -name "*unsigned*" ! -name "*unaligned*" -exec cp {} sai_bundle_package/ \;
+          # Locates and extracts exactly the one master composite release .apk file
+          find workspace/ -name "*universal*.apk" -exec cp {} single_output_package/permata-fused-universal-release.apk \;
           
-          # 2. Run an inventory safety check to ensure files were successfully copied
-          FILE_COUNT=$(ls -1 sai_bundle_package/*.apk 2>/dev/null | wc -l)
-          echo "Total APK variants gathered: $FILE_COUNT"
-          if [ "$FILE_COUNT" -eq 0 ]; then
-            echo "Error: Target files were not generated in the workspace outputs!"
-            exit 1
-          fi
-          
-          # 3. Zip the gathered APK components into a single multi-module package archive
-          cd sai_bundle_package
-          zip -r fermata-full-modules.apks ./*.apk
-          
-          echo "SAI package archive content verification:"
-          ls -la
+          echo "Verifying isolated file output:"
+          ls -la single_output_package/
 
-      - name: Upload Signed APKS Bundle
+      - name: Upload Master APK Installer
         uses: actions/upload-artifact@v4
         with:
-          name: fermata-sai-bundle
-          path: sai_bundle_package/fermata-full-modules.apks
+          name: permata-single-universal-installer
+          # Target only the individual isolated binary to prevent nesting folders inside the download
+          path: single_output_package/permata-fused-universal-release.apk
           retention-days: 1

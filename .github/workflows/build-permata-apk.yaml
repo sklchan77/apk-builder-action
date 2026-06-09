@@ -54,5 +54,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fermata-arm64-unsigned-installer
-          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk' }}
+          # Fixed: Scans the entire workspace output tree to find any compiled arm64 .apk file dynamically
+          path: workspace/**/build/outputs/**/*.apk
           retention-days: 1

@@ -54,14 +54,22 @@ jobs:
         run: |
           mkdir -p sai_bundle_package
           
-          # 1. Collect only the required 64-bit ARM module files into a clean folder
-          find workspace/ -name "*arm64-v8a*.apk" -exec cp {} sai_bundle_package/ \;
+          # 1. Broadly search and harvest all compiled release .apk variants from all module directories
+          find workspace/ -name "*.apk" ! -name "*unsigned*" ! -name "*unaligned*" -exec cp {} sai_bundle_package/ \;
           
-          # 2. Package all matched .apk binaries directly into a single compressed .apks target file
+          # 2. Run an inventory safety check to ensure files were successfully copied
+          FILE_COUNT=$(ls -1 sai_bundle_package/*.apk 2>/dev/null | wc -l)
+          echo "Total APK variants gathered: $FILE_COUNT"
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "Error: Target files were not generated in the workspace outputs!"
+            exit 1
+          fi
+          
+          # 3. Zip the gathered APK components into a single multi-module package archive
           cd sai_bundle_package
           zip -r fermata-full-modules.apks ./*.apk
           
-          echo "SAI package composition contents:"
+          echo "SAI package archive content verification:"
           ls -la
 
       - name: Upload Signed APKS Bundle

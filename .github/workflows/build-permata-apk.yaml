@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android 64-bit APK
 run-name: ${{ github.event.inputs.repository }} ${{ github.event.inputs.branchName && format('{0}', github.event.inputs.branchName) }} ${{ github.event.inputs.subdir && format('[/{0}]', github.event.inputs.subdir) }}
 
 on:
@@ -48,21 +48,21 @@ jobs:
         run: |
           if [ ! -f "gradlew" ]; then gradle wrapper; fi
           chmod +x gradlew
-          # Compiles both APK and AAB flavors natively for Fermata
           ./gradlew bundleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
-      - name: Sign Standalone APK File with P12
+      - name: Sign 64-bit APK File with P12
         uses: r0adkll/sign-android-release@v1
         with:
-          releaseDirectory: workspace/${{ github.event.inputs.subdir }}/fermata/build/outputs/apk/autoRelease
+          # Fixed path structure: uses shell evaluation to remove accidental double slashes
+          releaseDirectory: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}
           signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload Signed APK Artifact
+      - name: Upload Single 64-bit APK
         uses: actions/upload-artifact@v4
         with:
-          name: fermata-standalone-apk
-          path: workspace/${{ github.event.inputs.subdir }}/fermata/build/outputs/apk/autoRelease/*.apk
+          name: fermata-arm64-installer
+          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/*arm64-v8a*-signed.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/*arm64-v8a*-signed.apk' }}
           retention-days: 1

@@ -43,17 +43,17 @@ jobs:
             git clone --recurse-submodules --depth=1 --branch ${{ github.event.inputs.branchName }} ${{ github.event.inputs.repository }} workspace
           fi
 
-      - name: Build Android Project
+      - name: Build Android APK
         working-directory: ./workspace/${{ github.event.inputs.subdir }}
         run: |
           if [ ! -f "gradlew" ]; then gradle wrapper; fi
           chmod +x gradlew
-          ./gradlew bundleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
+          # Changed from bundleAutoRelease to assembleAutoRelease to force APK output creation
+          ./gradlew assembleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
 
       - name: Sign 64-bit APK File with P12
-        uses: r0adkll/sign-android-release@v1
+        uses: ILAnatoly/sign-android-release@v2
         with:
-          # Fixed path structure: uses shell evaluation to remove accidental double slashes
           releaseDirectory: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease' }}
           signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
           alias: ${{ secrets.KEY_ALIAS }}
@@ -64,5 +64,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fermata-arm64-installer
-          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/*arm64-v8a*-signed.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/*arm64-v8a*-signed.apk' }}
+          path: ${{ github.event.inputs.subdir != '' && format('workspace/{0}/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk', github.event.inputs.subdir) || 'workspace/fermata/build/outputs/apk/autoRelease/*arm64-v8a*.apk' }}
           retention-days: 1

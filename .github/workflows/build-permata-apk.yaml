@@ -1,0 +1,68 @@
+name: Build Android APK
+run-name: ${{ github.event.inputs.repository }} ${{ github.event.inputs.branchName && format('{0}', github.event.inputs.branchName) }} ${{ github.event.inputs.subdir && format('[/{0}]', github.event.inputs.subdir) }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Git repository URL"
+        required: true
+        default: "https://github.com/AndreyPavlenko/Fermata"
+      branchName:
+        description: "Git branch name [Optional]"
+        required: false
+        default: ""
+      subdir:
+        description: "Relative subdirectory path when the project is nested [Optional]"
+        required: false
+        default: ""
+      jdkVersion:
+        description: "OpenJDK version: 8, 17, 21, 25, …"
+        required: false
+        default: "17"
+      appIdSuffix:
+        description: "Custom App ID Suffix (e.g., .mycustomextension)"
+        required: false
+        default: ".my.permata.auto.personal.build"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: ${{ github.event.inputs.jdkVersion }}
+
+      - name: Clone project
+        run: |
+          if [[ -z "${{ github.event.inputs.branchName }}" ]]; then
+            git clone --recurse-submodules --depth=1 ${{ github.event.inputs.repository }} workspace
+          else
+            git clone --recurse-submodules --depth=1 --branch ${{ github.event.inputs.branchName }} ${{ github.event.inputs.repository }} workspace
+          fi
+
+      - name: Build Android Project
+        working-directory: ./workspace/${{ github.event.inputs.subdir }}
+        run: |
+          if [ ! -f "gradlew" ]; then gradle wrapper; fi
+          chmod +x gradlew
+          # Compiles both APK and AAB flavors natively for Fermata
+          ./gradlew bundleAutoRelease -PAPP_ID_SFX=${{ github.event.inputs.appIdSuffix }} --stacktrace
+
+      - name: Sign Standalone APK File with P12
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: workspace/${{ github.event.inputs.subdir }}/fermata/build/outputs/apk/autoRelease
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Signed APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fermata-standalone-apk
+          path: workspace/${{ github.event.inputs.subdir }}/fermata/build/outputs/apk/autoRelease/*.apk
+          retention-days: 1
